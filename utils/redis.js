@@ -2,14 +2,23 @@ import { createClient } from 'redis';
 
 class RedisClient {
   constructor() {
-    this.client = createClient()
-      .on('error', (err) => console.log(err))
-      .connect();
+    this.client = createClient();
+    this.isReady = true;
+    this.client.on('error', (err) => {
+      console.log(err);
+      this.isReady = false;
+    });
+    this.client.on('connect', () => {
+      this.isClientConnected = true;
+    });
   }
 
   isAlive() {
-    const status = this.client.isReady;
-    return status;
+    try {
+      return this.client.status === 'ready';
+    } catch (error) {
+      return false;
+    }
   }
 
   async get(key) {
