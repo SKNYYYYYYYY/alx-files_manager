@@ -1,5 +1,5 @@
 import express from "express";
-
+import routes 
 const ENV = process.env;
 const PORT = ENV.PORT || 5000;
 

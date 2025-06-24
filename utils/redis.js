@@ -23,21 +23,21 @@ class RedisClient {
   async get(key) {
     // const value = await this.client.get(key);
     // return value;
-    const getAsync = promisify(this.client.get).bind(this.client)
+    const getAsync = promisify(this.client.get).bind(this.client);
     const value = getAsync(key);
-    return value
+    return value;
   }
 
   async set(key, value, duration) {
     // await this.client.set(key, value);
     // await this.client.expire(key, duration);
     const setexAsync = promisify(this.client.setex).bind(this.client);
-      await setexAsync(key, duration, value)
+    await setexAsync(key, duration, value);
   }
 
   async del(key) {
     // await this.client.del(key);
-    const delAsync = promisify(this.client.del).bind(this.client)
+    const delAsync = promisify(this.client.del).bind(this.client);
     await delAsync(key);
   }
 }
