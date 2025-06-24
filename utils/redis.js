@@ -6,18 +6,18 @@ class RedisClient {
     this.isConnected = true;
 
     this.client.on('connect', () => {
-      this.isReady = true;
+      this.isConnected = true;
     });
 
     this.client.on('error', (err) => {
       console.log('Redis Client Error', err);
-      this.isReady = false;
+      this.isConnected = false;
     });
     this.client.connect();
   }
 
   isAlive() {
-    return this.isReady;
+    return this.isConnected;
   }
 
   async get(key) {
