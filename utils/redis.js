@@ -13,7 +13,7 @@ class RedisClient {
       console.log('Redis Client Error', err);
       this.isReady = false;
     });
-    this.client.connect()
+    this.client.connect();
   }
 
   isAlive() {

@@ -1,4 +1,3 @@
-// eslint-disable-next-line import/extensions
 import redisClient from './redis.js';
 
 (async () => {
