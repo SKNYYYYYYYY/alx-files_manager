@@ -1,12 +1,10 @@
-import { createClient } from 'redis';
+import { promisify } from 'util';
+import fs from 'fs';
 
-let status = false;
-const client = createClient()
-client.on('connect', () => {
-  console.log('1',status)
-  status = true
-   console.log('2',status)
-  })
-client.on('error', (err) => {status = false; console.log('bad', err)})
-client.connect()
-console.log('3', status)
+const fsReadAsync = promisify(fs.readFile);
+
+(async () => {
+  const data = await fsReadAsync('del.txt');
+  const text = data.toString().toLocaleUpperCase();
+  console.log(text);
+})();
