@@ -13,7 +13,12 @@ class DBClient {
     this.status = false;
 
     this.client = new MongoClient(url, { useUnifiedTopology: true });
-
+    this.client.connect()
+      .then(() => {
+        this.db = this.client.db(`${DB_DATABASE}`);
+        this.status = true;
+      })
+      .catch(() => { this.status = false; });
   }
 
   isAlive() {
