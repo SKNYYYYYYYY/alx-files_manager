@@ -34,6 +34,11 @@ class DBClient {
     const files = await this.db.collection('files').find().toArray();
     return files.length;
   }
+
+  getCollection(name) {
+    if (!this.isAlive) throw new Error('DB is not ready');
+    return this.db.collection(name);
+  }
 }
 
 const dbClient = new DBClient();
