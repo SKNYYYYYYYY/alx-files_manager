@@ -1,9 +1,11 @@
+/* eslint-disable consistent-return */
 /* eslint-disable import/extensions */
 import { v4 as uuid4 } from 'uuid';
-import fs from 'fs';
+import fs, { existsSync } from 'fs';
 import { promisify } from 'util';
 import pkg from 'mongodb';
 import mime from 'mime-types';
+import Queue from 'bull';
 import redisClient from '../utils/redis.js';
 import dbClient from '../utils/db.js';
 
@@ -76,7 +78,11 @@ export const postUpload = (async (req, res) => {
   const fileName = uuid4();
   const localPath = `${folderPath}/${fileName}`;
   try {
-    await writeFileAsync(localPath, Buffer.from(data, 'base64').toString());
+    if (type === 'file') {
+      await writeFileAsync(localPath, Buffer.from(data, 'base64').toString());
+    } else {
+      await writeFileAsync(localPath, Buffer.from(data, 'base64'));
+    }
   } catch (err) {
     console.log('Error', err);
   }
@@ -88,6 +94,11 @@ export const postUpload = (async (req, res) => {
     isPublic,
     parentId,
     localPath,
+  });
+  const fileQueue = new Queue('fileQueue');
+  fileQueue.add({
+    userId,
+    fileId: newFile.insertedId,
   });
 
   const createdFile = {
@@ -150,6 +161,7 @@ export const getIndex = (async (req, res) => {
   return res.send(files);
 });
 
+// eslint-disable-next-line consistent-return
 export const putPublish = (async (req, res) => {
   const token = req.headers['x-token'];
   const userId = await redisClient.get(`auth_${token}`);
@@ -196,15 +208,14 @@ export const putUnPublish = (async (req, res) => {
   return res.status(200).send(updatedFile.value);
 });
 
-
 export const getFile = (async (req, res) => {
   const token = req.headers['x-token'];
   const userId = await redisClient.get(`auth_${token}`);
-
-  const Id = req.params.id;
+  const parentId = req.params.id;
+  const size = parseInt(req.query.size, 10);
   let file;
-  if (Id) {
-    file = await dbClient.getCollection('files').findOne({ _id: new ObjectId(Id) });
+  if (parentId) {
+    file = await dbClient.getCollection('files').findOne({ _id: new ObjectId(parentId) });
     if (!file) {
       return res.status(404).send({ error: 'Not found' });
     }
@@ -218,9 +229,23 @@ export const getFile = (async (req, res) => {
       return res.status(404).send({ error: 'Not found' });
     }
   }
-  const mimeType = mime.lookup(file.name);
+  const mimeType = mime.lookup(file.name) || 'application/octet-stream';
   res.setHeader('Content-Type', mimeType);
-  const fileBuffer = fs.readFileSync(file.localPath);
 
-  return res.status(200).send(fileBuffer);
+  if (size && ![500, 250, 100].includes(size)) {
+    return res.status(404).send({ error: 'Size should be either 500, 250 or 100' });
+  }
+  const path = size ? `${file.localPath}_${size}` : file.localPath;
+  if (!existsSync(path)) {
+    return res.status(404).send({ error: 'Not found' });
+  }
+  const fileStream = fs.createReadStream(path);
+  fileStream.on('open', () => {
+    res.status(200);
+    fileStream.pipe(res);
+  });
+  fileStream.on('error', (err) => {
+    console.error('Stream error:', err);
+    res.status(500).send('Internal Server Error');
+  });
 });

@@ -3,12 +3,15 @@
 import asyncHandler from 'express-async-handler';
 import crypto from 'crypto';
 import pkg from 'mongodb';
+import Queue from 'bull';
 import redisClient from '../utils/redis.js';
 import dbClient from '../utils/db.js';
 
 const { ObjectId } = pkg;
 
 export const postNew = asyncHandler(async (req, res) => {
+  const userQueue = new Queue('userQueue');
+
   const { email } = req.body;
   if (!email) {
     return res.status(400).send('Missing email');
@@ -29,6 +32,9 @@ export const postNew = asyncHandler(async (req, res) => {
 
   const rawUser = await users.find({ email: `${email}` }).toArray();
   const id = rawUser[0]._id;
+  userQueue.add({
+    userId: id,
+  });
   const savedEmail = rawUser[0].email;
 
   const user = { id, email: savedEmail };

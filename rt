@@ -1,0 +1,81 @@
+#!/bin/bash
+
+# Defaults
+TIME_UNIT="s"  # s, ms, or mn
+INTERVAL=5     # Default interval (5s)
+
+# Parse options
+while getopts "t:i:" opt; do
+  case $opt in
+    t) TIME_UNIT="$OPTARG" ;;
+    i) INTERVAL="$OPTARG" ;;
+    *) echo "Usage: $0 [-t s|ms|mn] [-i interval] <command> [args...]"; exit 1 ;;
+  esac
+done
+shift $((OPTIND - 1))
+
+# Set interval defaults
+if [[ "$TIME_UNIT" == "ms" && "$INTERVAL" == "5" ]]; then
+  INTERVAL=500
+elif [[ "$TIME_UNIT" == "mn" && "$INTERVAL" == "5" ]]; then
+  INTERVAL=1
+fi
+
+# Validate time unit
+case "$TIME_UNIT" in
+  s|ms|mn) ;;
+  *) echo "Invalid time unit: $TIME_UNIT. Use s, ms, or mn."; exit 1 ;;
+esac
+
+# Cleanup
+cleanup() {
+  if [ -d "$tempdir" ]; then
+    rm -rf "$tempdir"
+  fi
+  final_elapsed=$(get_elapsed)
+  echo -e "\nRuntime: ${final_elapsed} (interrupted)"
+  exit 1
+}
+trap cleanup SIGINT ERR
+
+# Get elapsed time
+get_elapsed() {
+  local now_ms=$(date +%s%3N)
+  local elapsed_ms=$((now_ms - start_ms))
+  case "$TIME_UNIT" in
+    s)  echo "$((elapsed_ms / 1000))s" ;;
+    ms) echo "${elapsed_ms}ms" ;;
+    mn) echo "$((elapsed_ms / 60000))mn" ;;
+  esac
+}
+
+# Main
+start_ms=$(date +%s%3N)
+tempdir=$(mktemp -d)
+mkfifo "$tempdir/program_output"
+
+"$@" > "$tempdir/program_output" 2>&1 &
+pid=$!
+
+# Print program output without adding extra newlines
+( while read -r line; do
+    printf "\n%s" "$line"  # Print program output (no trailing newline)
+    sleep 0.015            # Tiny pause to avoid flicker
+  done < "$tempdir/program_output" ) &
+
+# Timer loop
+while kill -0 "$pid" 2>/dev/null; do
+  echo -ne "\r$(get_elapsed) elapsed"
+  case "$TIME_UNIT" in
+    s)  sleep "$INTERVAL" ;;
+    ms) sleep "$(bc <<< "scale=3; $INTERVAL / 1000")" ;;
+    mn) sleep "$((INTERVAL * 60))" ;;
+  esac
+done
+
+wait "$pid"
+exit_status=$?
+final_elapsed=$(get_elapsed)
+echo -e "\nProgram finished. Runtime: ${final_elapsed}"
+rm -rf "$tempdir"
+exit $exit_status
